@@ -129,3 +129,5 @@ export const deleteProduct = async (req: Request<{ id: string }>, res: Response)
     });
   }
 };
+
+export { products };
