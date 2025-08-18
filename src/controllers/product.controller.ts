@@ -10,6 +10,7 @@ export const createProduct = async (req: Request<{}, {}, CreateProductDTO>, res:
 
     if (!name || !slug || !priceCents || !description || !imageUrl || !categoryId || !brand) {
       return res.status(400).json({
+        success: false,
         error: 'Missing required fields',
         requiredFields: [
           'name',
@@ -20,6 +21,21 @@ export const createProduct = async (req: Request<{}, {}, CreateProductDTO>, res:
           'categoryId',
           'brand',
         ],
+      });
+    }
+
+    if (priceCents < 0 || !Number.isInteger(priceCents)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Price must be a positive integer in cents',
+      });
+    }
+
+    const existingProduct = products.find((p) => p.slug === slug);
+    if (existingProduct) {
+      return res.status(409).json({
+        success: false,
+        error: 'Product with this slug already exists',
       });
     }
 

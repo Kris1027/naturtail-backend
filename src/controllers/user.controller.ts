@@ -6,6 +6,7 @@ import {
   UserResponseDTO,
   UserRole,
 } from '../types/user.types';
+import { validateEmail } from '../middleware/validation.middleware';
 
 const users: User[] = [];
 
@@ -20,8 +21,23 @@ export const createUser = async (req: Request<{}, {}, CreateUserDTO>, res: Respo
 
     if (!email || !password || !firstName || !lastName) {
       return res.status(400).json({
+        success: false,
         error: 'Missing required fields',
         requiredFields: ['email', 'password', 'firstName', 'lastName'],
+      });
+    }
+
+    if (!validateEmail(email)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid email format',
+      });
+    }
+
+    if (password.length < 6) {
+      return res.status(400).json({
+        success: false,
+        error: 'Password must be at least 6 characters long',
       });
     }
 
