@@ -1,6 +1,7 @@
 import { Order, UpdateOrderDTO, OrderStatus, PaymentStatus, OrderItem, PaymentMethod, ShippingAddress } from '../types/order.types';
 import { generateIdSync } from '../utils/idGenerator';
 import { settings } from '../controllers/settings.controller';
+import { randomBytes } from 'crypto';
 
 class OrderRepository {
   private orders: Order[] = [];
@@ -27,7 +28,7 @@ class OrderRepository {
 
   generateOrderNumber(): string {
     const timestamp = Date.now().toString(36).toUpperCase();
-    const random = Math.random().toString(36).substring(2, 7).toUpperCase();
+    const random = randomBytes(3).toString('hex').toUpperCase();
     const prefix = settings.order.orderNumberPrefix || 'ORD';
     return `${prefix}-${timestamp}-${random}`;
   }
