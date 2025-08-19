@@ -129,7 +129,7 @@ export const getAllOrders = async (_req: Request, res: Response) => {
       total: orders.length,
     });
   } catch (error) {
-    console.error('Error fetching orders:', error);
+    logger.error('Error fetching orders:', error);
     return res.status(500).json({
       success: false,
       error: 'Internal server error',
