@@ -1,28 +1,16 @@
 import { Request, Response } from 'express';
 import {
-  Order,
   CreateOrderDTO,
   UpdateOrderDTO,
   OrderStatus,
   PaymentStatus,
   OrderItem,
 } from '../types/order.types';
-import { Product } from '../types/product.types';
 import { settings } from './settings.controller';
+import { orderRepository } from '../repositories/order.repository';
+import { productRepository } from '../repositories/product.repository';
+import { logger } from '../utils/logger';
 
-const orders: Order[] = [];
-
-const getProducts = (): Product[] => {
-  const productsModule = require('./product.controller');
-  return productsModule.products || [];
-};
-
-const generateOrderNumber = (): string => {
-  const timestamp = Date.now().toString(36).toUpperCase();
-  const random = Math.random().toString(36).substring(2, 7).toUpperCase();
-  const prefix = settings.order.orderNumberPrefix || 'ORD';
-  return `${prefix}-${timestamp}-${random}`;
-};
 
 const calculateShipping = (subtotalCents: number): number => {
   const shippingSettings = settings.shipping;
@@ -44,25 +32,51 @@ export const createOrder = async (req: Request<{}, {}, CreateOrderDTO>, res: Res
 
     if (!userId || !items || items.length === 0 || !shippingAddress || !paymentMethod) {
       return res.status(400).json({
+        success: false,
         error: 'Missing required fields',
         requiredFields: ['userId', 'items', 'shippingAddress', 'paymentMethod'],
       });
     }
 
-    const products = getProducts();
+    // Validate order items
+    for (const item of items) {
+      if (!item.productId || typeof item.productId !== 'string') {
+        return res.status(400).json({
+          success: false,
+          error: 'Invalid product ID in order items',
+        });
+      }
+      
+      if (!Number.isInteger(item.quantity) || item.quantity <= 0) {
+        return res.status(400).json({
+          success: false,
+          error: 'Quantity must be a positive integer',
+        });
+      }
+      
+      if (item.quantity > 1000) {
+        return res.status(400).json({
+          success: false,
+          error: 'Quantity exceeds maximum allowed (1000)',
+        });
+      }
+    }
+
     const orderItems: OrderItem[] = [];
     let subtotalCents = 0;
 
     for (const item of items) {
-      const product = products.find((p) => p.id === item.productId);
+      const product = productRepository.findById(item.productId);
       if (!product) {
         return res.status(404).json({
+          success: false,
           error: `Product not found: ${item.productId}`,
         });
       }
 
       if (!product.isActive) {
         return res.status(400).json({
+          success: false,
           error: `Product is not available: ${product.name}`,
         });
       }
@@ -81,33 +95,26 @@ export const createOrder = async (req: Request<{}, {}, CreateOrderDTO>, res: Res
     const shippingCents = calculateShipping(subtotalCents);
     const totalCents = subtotalCents + shippingCents;
 
-    const newOrder: Order = {
-      id: Date.now().toString(),
+    const newOrder = orderRepository.create({
       userId,
-      orderNumber: generateOrderNumber(),
       items: orderItems,
       subtotalCents,
       shippingCents,
       totalCents,
-      status: OrderStatus.PENDING,
-      paymentStatus: PaymentStatus.PENDING,
-      paymentMethod,
       shippingAddress,
       billingAddress: billingAddress || shippingAddress,
+      paymentMethod,
       notes,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    };
-
-    orders.push(newOrder);
+    });
 
     return res.status(201).json({
       success: true,
       data: newOrder,
     });
   } catch (error) {
-    console.error('Error creating order:', error);
+    logger.error('Error creating order', error);
     return res.status(500).json({
+      success: false,
       error: 'Internal server error',
     });
   }
@@ -115,14 +122,16 @@ export const createOrder = async (req: Request<{}, {}, CreateOrderDTO>, res: Res
 
 export const getAllOrders = async (_req: Request, res: Response) => {
   try {
+    const orders = orderRepository.findAll();
     return res.status(200).json({
       success: true,
       data: orders,
       total: orders.length,
     });
   } catch (error) {
-    console.error('Error fetching orders:', error);
+    logger.error('Error fetching orders:', error);
     return res.status(500).json({
+      success: false,
       error: 'Internal server error',
     });
   }
@@ -132,10 +141,11 @@ export const getOrderById = async (req: Request<{ id: string }>, res: Response) 
   try {
     const { id } = req.params;
 
-    const order = orders.find((o) => o.id === id);
+    const order = orderRepository.findById(id);
 
     if (!order) {
       return res.status(404).json({
+        success: false,
         error: 'Order not found',
       });
     }
@@ -145,8 +155,9 @@ export const getOrderById = async (req: Request<{ id: string }>, res: Response) 
       data: order,
     });
   } catch (error) {
-    console.error('Error fetching order:', error);
+    logger.error('Error fetching order', error);
     return res.status(500).json({
+      success: false,
       error: 'Internal server error',
     });
   }
@@ -156,7 +167,7 @@ export const getUserOrders = async (req: Request<{ userId: string }>, res: Respo
   try {
     const { userId } = req.params;
 
-    const userOrders = orders.filter((o) => o.userId === userId);
+    const userOrders = orderRepository.findByUserId(userId);
 
     return res.status(200).json({
       success: true,
@@ -164,8 +175,9 @@ export const getUserOrders = async (req: Request<{ userId: string }>, res: Respo
       total: userOrders.length,
     });
   } catch (error) {
-    console.error('Error fetching user orders:', error);
+    logger.error('Error fetching user orders', error);
     return res.status(500).json({
+      success: false,
       error: 'Internal server error',
     });
   }
@@ -177,12 +189,13 @@ export const getOrdersByStatus = async (req: Request<{ status: string }>, res: R
 
     if (!Object.values(OrderStatus).includes(status as OrderStatus)) {
       return res.status(400).json({
+        success: false,
         error: 'Invalid order status',
         validStatuses: Object.values(OrderStatus),
       });
     }
 
-    const filteredOrders = orders.filter((o) => o.status === status);
+    const filteredOrders = orderRepository.findByStatus(status as OrderStatus);
 
     return res.status(200).json({
       success: true,
@@ -190,8 +203,9 @@ export const getOrdersByStatus = async (req: Request<{ status: string }>, res: R
       total: filteredOrders.length,
     });
   } catch (error) {
-    console.error('Error fetching orders by status:', error);
+    logger.error('Error fetching orders by status', error);
     return res.status(500).json({
+      success: false,
       error: 'Internal server error',
     });
   }
@@ -205,16 +219,9 @@ export const updateOrder = async (
     const { id } = req.params;
     const updates = req.body;
 
-    const orderIndex = orders.findIndex((o) => o.id === id);
-
-    if (orderIndex === -1) {
-      return res.status(404).json({
-        error: 'Order not found',
-      });
-    }
-
     if (updates.status && !Object.values(OrderStatus).includes(updates.status)) {
       return res.status(400).json({
+        success: false,
         error: 'Invalid order status',
         validStatuses: Object.values(OrderStatus),
       });
@@ -222,30 +229,34 @@ export const updateOrder = async (
 
     if (updates.paymentStatus && !Object.values(PaymentStatus).includes(updates.paymentStatus)) {
       return res.status(400).json({
+        success: false,
         error: 'Invalid payment status',
         validStatuses: Object.values(PaymentStatus),
       });
     }
 
-    const updatedOrder: Order = {
-      ...orders[orderIndex],
-      ...updates,
-      updatedAt: new Date(),
-    };
-
-    if (updates.status === OrderStatus.DELIVERED && !updatedOrder.deliveredAt) {
-      updatedOrder.deliveredAt = new Date();
+    const updateData: any = { ...updates };
+    if (updates.status === OrderStatus.DELIVERED) {
+      updateData.deliveredAt = new Date();
     }
 
-    orders[orderIndex] = updatedOrder;
+    const updatedOrder = orderRepository.update(id, updateData);
+
+    if (!updatedOrder) {
+      return res.status(404).json({
+        success: false,
+        error: 'Order not found',
+      });
+    }
 
     return res.status(200).json({
       success: true,
       data: updatedOrder,
     });
   } catch (error) {
-    console.error('Error updating order:', error);
+    logger.error('Error updating order', error);
     return res.status(500).json({
+      success: false,
       error: 'Internal server error',
     });
   }
@@ -255,42 +266,42 @@ export const cancelOrder = async (req: Request<{ id: string }>, res: Response) =
   try {
     const { id } = req.params;
 
-    const orderIndex = orders.findIndex((o) => o.id === id);
+    const order = orderRepository.findById(id);
 
-    if (orderIndex === -1) {
+    if (!order) {
       return res.status(404).json({
+        success: false,
         error: 'Order not found',
       });
     }
 
-    const order = orders[orderIndex];
-
     if (order.status === OrderStatus.DELIVERED) {
       return res.status(400).json({
+        success: false,
         error: 'Cannot cancel delivered order',
       });
     }
 
     if (order.status === OrderStatus.CANCELLED) {
       return res.status(400).json({
+        success: false,
         error: 'Order is already cancelled',
       });
     }
 
-    order.status = OrderStatus.CANCELLED;
-    order.updatedAt = new Date();
+    const updatedOrder = orderRepository.updateStatus(id, OrderStatus.CANCELLED);
 
     return res.status(200).json({
       success: true,
       message: 'Order cancelled successfully',
-      data: order,
+      data: updatedOrder,
     });
   } catch (error) {
-    console.error('Error cancelling order:', error);
+    logger.error('Error cancelling order', error);
     return res.status(500).json({
+      success: false,
       error: 'Internal server error',
     });
   }
 };
 
-export { orders };

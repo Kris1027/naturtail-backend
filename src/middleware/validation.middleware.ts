@@ -1,7 +1,36 @@
 import { Request, Response, NextFunction } from 'express';
 
 export const validateEmail = (email: string): boolean => {
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  // More comprehensive email regex based on RFC 5322
+  // Allows most common valid email formats while still catching obvious errors
+  const emailRegex = /^[a-zA-Z0-9.!#$%&'*+\/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$/;
+  
+  // Additional validation rules
+  if (!email || typeof email !== 'string') {
+    return false;
+  }
+  
+  // Check length constraints
+  if (email.length > 254) {
+    return false;
+  }
+  
+  // Check local part length (before @)
+  const parts = email.split('@');
+  if (parts.length !== 2 || parts[0].length > 64) {
+    return false;
+  }
+  
+  // No consecutive dots
+  if (email.includes('..')) {
+    return false;
+  }
+  
+  // Must not start or end with a dot
+  if (email.startsWith('.') || email.endsWith('.')) {
+    return false;
+  }
+  
   return emailRegex.test(email);
 };
 
