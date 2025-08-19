@@ -1,16 +1,30 @@
-let counter = 0;
+import { randomBytes } from 'crypto';
+
+// Use BigInt for counter to handle very large numbers safely
+let counter = BigInt(0);
+const MAX_COUNTER = BigInt(Number.MAX_SAFE_INTEGER);
 
 /**
- * Generates a unique ID using timestamp, random component, and counter
+ * Generates a cryptographically strong unique ID
  * Format: timestamp-random-counter
- * This approach prevents collisions even in high-traffic scenarios
+ * Uses crypto.randomBytes for better randomness and BigInt for counter safety
  */
 export const generateId = (prefix?: string): string => {
-  const timestamp = Date.now();
-  const random = Math.random().toString(36).substring(2, 9);
-  const count = (++counter).toString().padStart(4, '0');
+  // Atomic-like increment with overflow protection
+  counter = counter + BigInt(1);
+  if (counter > MAX_COUNTER) {
+    counter = BigInt(0);
+  }
   
-  const id = `${timestamp}-${random}-${count}`;
+  const timestamp = Date.now();
+  // Use crypto.randomBytes for better randomness
+  const random = randomBytes(4).toString('hex');
+  const count = counter.toString().padStart(6, '0');
+  
+  // Include process.pid for additional uniqueness in clustered environments
+  const pid = process.pid.toString(36);
+  
+  const id = `${timestamp}-${random}-${pid}-${count}`;
   return prefix ? `${prefix}_${id}` : id;
 };
 
@@ -18,5 +32,5 @@ export const generateId = (prefix?: string): string => {
  * Reset counter (useful for testing)
  */
 export const resetIdCounter = (): void => {
-  counter = 0;
+  counter = BigInt(0);
 };
