@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { CreateProductDTO, Product, UpdateProductDTO } from '../types/product.types';
+import { generateId } from '../utils/idGenerator';
 
 const products: Product[] = [];
 
@@ -40,7 +41,7 @@ export const createProduct = async (req: Request<{}, {}, CreateProductDTO>, res:
     }
 
     const newProduct: Product = {
-      id: Date.now().toString(),
+      id: generateId('product'),
       name,
       slug,
       priceCents,

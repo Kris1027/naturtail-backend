@@ -8,6 +8,7 @@ import {
   OrderItem,
 } from '../types/order.types';
 import { Product } from '../types/product.types';
+import { generateId } from '../utils/idGenerator';
 import { settings } from './settings.controller';
 
 const orders: Order[] = [];
@@ -82,7 +83,7 @@ export const createOrder = async (req: Request<{}, {}, CreateOrderDTO>, res: Res
     const totalCents = subtotalCents + shippingCents;
 
     const newOrder: Order = {
-      id: Date.now().toString(),
+      id: generateId('order'),
       userId,
       orderNumber: generateOrderNumber(),
       items: orderItems,
