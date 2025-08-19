@@ -50,7 +50,7 @@ export const createProduct = async (req: Request<{}, {}, CreateProductDTO>, res:
       gallery: gallery || [],
       categoryId,
       brand,
-      isActive: isActive ?? false,
+      isActive: isActive ?? true,
       createdAt: new Date(),
       updatedAt: new Date(),
     };

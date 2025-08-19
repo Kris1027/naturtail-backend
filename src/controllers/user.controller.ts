@@ -45,6 +45,7 @@ export const createUser = async (req: Request<{}, {}, CreateUserDTO>, res: Respo
     const existingUser = users.find((u) => u.email === email);
     if (existingUser) {
       return res.status(409).json({
+        success: false,
         error: 'User with this email already exists',
       });
     }

@@ -10,12 +10,12 @@ import {
 import { Product } from '../types/product.types';
 import { generateId } from '../utils/idGenerator';
 import { settings } from './settings.controller';
+import { products } from './product.controller';
 
 const orders: Order[] = [];
 
 const getProducts = (): Product[] => {
-  const productsModule = require('./product.controller');
-  return productsModule.products || [];
+  return products || [];
 };
 
 const generateOrderNumber = (): string => {
@@ -45,9 +45,34 @@ export const createOrder = async (req: Request<{}, {}, CreateOrderDTO>, res: Res
 
     if (!userId || !items || items.length === 0 || !shippingAddress || !paymentMethod) {
       return res.status(400).json({
+        success: false,
         error: 'Missing required fields',
         requiredFields: ['userId', 'items', 'shippingAddress', 'paymentMethod'],
       });
+    }
+
+    // Validate order items
+    for (const item of items) {
+      if (!item.productId || typeof item.productId !== 'string') {
+        return res.status(400).json({
+          success: false,
+          error: 'Invalid product ID in order items',
+        });
+      }
+      
+      if (!Number.isInteger(item.quantity) || item.quantity <= 0) {
+        return res.status(400).json({
+          success: false,
+          error: 'Quantity must be a positive integer',
+        });
+      }
+      
+      if (item.quantity > 1000) {
+        return res.status(400).json({
+          success: false,
+          error: 'Quantity exceeds maximum allowed (1000)',
+        });
+      }
     }
 
     const products = getProducts();
@@ -58,12 +83,14 @@ export const createOrder = async (req: Request<{}, {}, CreateOrderDTO>, res: Res
       const product = products.find((p) => p.id === item.productId);
       if (!product) {
         return res.status(404).json({
+          success: false,
           error: `Product not found: ${item.productId}`,
         });
       }
 
       if (!product.isActive) {
         return res.status(400).json({
+          success: false,
           error: `Product is not available: ${product.name}`,
         });
       }
