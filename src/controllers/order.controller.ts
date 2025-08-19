@@ -1,29 +1,16 @@
 import { Request, Response } from 'express';
 import {
-  Order,
   CreateOrderDTO,
   UpdateOrderDTO,
   OrderStatus,
   PaymentStatus,
   OrderItem,
 } from '../types/order.types';
-import { Product } from '../types/product.types';
-import { generateId } from '../utils/idGenerator';
 import { settings } from './settings.controller';
-import { products } from './product.controller';
+import { orderRepository } from '../repositories/order.repository';
+import { productRepository } from '../repositories/product.repository';
+import { logger } from '../utils/logger';
 
-const orders: Order[] = [];
-
-const getProducts = (): Product[] => {
-  return products || [];
-};
-
-const generateOrderNumber = (): string => {
-  const timestamp = Date.now().toString(36).toUpperCase();
-  const random = Math.random().toString(36).substring(2, 7).toUpperCase();
-  const prefix = settings.order.orderNumberPrefix || 'ORD';
-  return `${prefix}-${timestamp}-${random}`;
-};
 
 const calculateShipping = (subtotalCents: number): number => {
   const shippingSettings = settings.shipping;
@@ -75,12 +62,11 @@ export const createOrder = async (req: Request<{}, {}, CreateOrderDTO>, res: Res
       }
     }
 
-    const products = getProducts();
     const orderItems: OrderItem[] = [];
     let subtotalCents = 0;
 
     for (const item of items) {
-      const product = products.find((p) => p.id === item.productId);
+      const product = productRepository.findById(item.productId);
       if (!product) {
         return res.status(404).json({
           success: false,
@@ -109,32 +95,24 @@ export const createOrder = async (req: Request<{}, {}, CreateOrderDTO>, res: Res
     const shippingCents = calculateShipping(subtotalCents);
     const totalCents = subtotalCents + shippingCents;
 
-    const newOrder: Order = {
-      id: generateId('order'),
+    const newOrder = orderRepository.create({
       userId,
-      orderNumber: generateOrderNumber(),
       items: orderItems,
       subtotalCents,
       shippingCents,
       totalCents,
-      status: OrderStatus.PENDING,
-      paymentStatus: PaymentStatus.PENDING,
-      paymentMethod,
       shippingAddress,
       billingAddress: billingAddress || shippingAddress,
+      paymentMethod,
       notes,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    };
-
-    orders.push(newOrder);
+    });
 
     return res.status(201).json({
       success: true,
       data: newOrder,
     });
   } catch (error) {
-    console.error('Error creating order:', error);
+    logger.error('Error creating order', error);
     return res.status(500).json({
       error: 'Internal server error',
     });
@@ -143,6 +121,7 @@ export const createOrder = async (req: Request<{}, {}, CreateOrderDTO>, res: Res
 
 export const getAllOrders = async (_req: Request, res: Response) => {
   try {
+    const orders = orderRepository.findAll();
     return res.status(200).json({
       success: true,
       data: orders,
@@ -311,7 +290,7 @@ export const cancelOrder = async (req: Request<{ id: string }>, res: Response) =
     return res.status(200).json({
       success: true,
       message: 'Order cancelled successfully',
-      data: order,
+      data: updatedOrder,
     });
   } catch (error) {
     console.error('Error cancelling order:', error);
