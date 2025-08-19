@@ -114,6 +114,7 @@ export const createOrder = async (req: Request<{}, {}, CreateOrderDTO>, res: Res
   } catch (error) {
     logger.error('Error creating order', error);
     return res.status(500).json({
+      success: false,
       error: 'Internal server error',
     });
   }
@@ -130,6 +131,7 @@ export const getAllOrders = async (_req: Request, res: Response) => {
   } catch (error) {
     console.error('Error fetching orders:', error);
     return res.status(500).json({
+      success: false,
       error: 'Internal server error',
     });
   }
@@ -139,10 +141,11 @@ export const getOrderById = async (req: Request<{ id: string }>, res: Response) 
   try {
     const { id } = req.params;
 
-    const order = orders.find((o) => o.id === id);
+    const order = orderRepository.findById(id);
 
     if (!order) {
       return res.status(404).json({
+        success: false,
         error: 'Order not found',
       });
     }
@@ -152,8 +155,9 @@ export const getOrderById = async (req: Request<{ id: string }>, res: Response) 
       data: order,
     });
   } catch (error) {
-    console.error('Error fetching order:', error);
+    logger.error('Error fetching order', error);
     return res.status(500).json({
+      success: false,
       error: 'Internal server error',
     });
   }
@@ -163,7 +167,7 @@ export const getUserOrders = async (req: Request<{ userId: string }>, res: Respo
   try {
     const { userId } = req.params;
 
-    const userOrders = orders.filter((o) => o.userId === userId);
+    const userOrders = orderRepository.findByUserId(userId);
 
     return res.status(200).json({
       success: true,
@@ -171,8 +175,9 @@ export const getUserOrders = async (req: Request<{ userId: string }>, res: Respo
       total: userOrders.length,
     });
   } catch (error) {
-    console.error('Error fetching user orders:', error);
+    logger.error('Error fetching user orders', error);
     return res.status(500).json({
+      success: false,
       error: 'Internal server error',
     });
   }
@@ -184,12 +189,13 @@ export const getOrdersByStatus = async (req: Request<{ status: string }>, res: R
 
     if (!Object.values(OrderStatus).includes(status as OrderStatus)) {
       return res.status(400).json({
+        success: false,
         error: 'Invalid order status',
         validStatuses: Object.values(OrderStatus),
       });
     }
 
-    const filteredOrders = orders.filter((o) => o.status === status);
+    const filteredOrders = orderRepository.findByStatus(status as OrderStatus);
 
     return res.status(200).json({
       success: true,
@@ -197,8 +203,9 @@ export const getOrdersByStatus = async (req: Request<{ status: string }>, res: R
       total: filteredOrders.length,
     });
   } catch (error) {
-    console.error('Error fetching orders by status:', error);
+    logger.error('Error fetching orders by status', error);
     return res.status(500).json({
+      success: false,
       error: 'Internal server error',
     });
   }
@@ -212,16 +219,9 @@ export const updateOrder = async (
     const { id } = req.params;
     const updates = req.body;
 
-    const orderIndex = orders.findIndex((o) => o.id === id);
-
-    if (orderIndex === -1) {
-      return res.status(404).json({
-        error: 'Order not found',
-      });
-    }
-
     if (updates.status && !Object.values(OrderStatus).includes(updates.status)) {
       return res.status(400).json({
+        success: false,
         error: 'Invalid order status',
         validStatuses: Object.values(OrderStatus),
       });
@@ -229,30 +229,34 @@ export const updateOrder = async (
 
     if (updates.paymentStatus && !Object.values(PaymentStatus).includes(updates.paymentStatus)) {
       return res.status(400).json({
+        success: false,
         error: 'Invalid payment status',
         validStatuses: Object.values(PaymentStatus),
       });
     }
 
-    const updatedOrder: Order = {
-      ...orders[orderIndex],
-      ...updates,
-      updatedAt: new Date(),
-    };
-
-    if (updates.status === OrderStatus.DELIVERED && !updatedOrder.deliveredAt) {
-      updatedOrder.deliveredAt = new Date();
+    const updateData: any = { ...updates };
+    if (updates.status === OrderStatus.DELIVERED) {
+      updateData.deliveredAt = new Date();
     }
 
-    orders[orderIndex] = updatedOrder;
+    const updatedOrder = orderRepository.update(id, updateData);
+
+    if (!updatedOrder) {
+      return res.status(404).json({
+        success: false,
+        error: 'Order not found',
+      });
+    }
 
     return res.status(200).json({
       success: true,
       data: updatedOrder,
     });
   } catch (error) {
-    console.error('Error updating order:', error);
+    logger.error('Error updating order', error);
     return res.status(500).json({
+      success: false,
       error: 'Internal server error',
     });
   }
@@ -262,30 +266,30 @@ export const cancelOrder = async (req: Request<{ id: string }>, res: Response) =
   try {
     const { id } = req.params;
 
-    const orderIndex = orders.findIndex((o) => o.id === id);
+    const order = orderRepository.findById(id);
 
-    if (orderIndex === -1) {
+    if (!order) {
       return res.status(404).json({
+        success: false,
         error: 'Order not found',
       });
     }
 
-    const order = orders[orderIndex];
-
     if (order.status === OrderStatus.DELIVERED) {
       return res.status(400).json({
+        success: false,
         error: 'Cannot cancel delivered order',
       });
     }
 
     if (order.status === OrderStatus.CANCELLED) {
       return res.status(400).json({
+        success: false,
         error: 'Order is already cancelled',
       });
     }
 
-    order.status = OrderStatus.CANCELLED;
-    order.updatedAt = new Date();
+    const updatedOrder = orderRepository.updateStatus(id, OrderStatus.CANCELLED);
 
     return res.status(200).json({
       success: true,
@@ -293,11 +297,11 @@ export const cancelOrder = async (req: Request<{ id: string }>, res: Response) =
       data: updatedOrder,
     });
   } catch (error) {
-    console.error('Error cancelling order:', error);
+    logger.error('Error cancelling order', error);
     return res.status(500).json({
+      success: false,
       error: 'Internal server error',
     });
   }
 };
 
-export { orders };
