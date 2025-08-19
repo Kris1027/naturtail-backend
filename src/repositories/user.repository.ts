@@ -1,5 +1,5 @@
 import { User, CreateUserDTO, UpdateUserDTO, UserRole } from '../types/user.types';
-import { generateId } from '../utils/idGenerator';
+import { generateIdSync } from '../utils/idGenerator';
 
 class UserRepository {
   private users: User[] = [];
@@ -26,7 +26,7 @@ class UserRepository {
 
   create(data: CreateUserDTO): User {
     const newUser: User = {
-      id: generateId('user'),
+      id: generateIdSync('user'),
       ...data,
       role: data.role || UserRole.USER,
       isActive: true,

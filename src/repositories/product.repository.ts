@@ -1,5 +1,5 @@
 import { Product, CreateProductDTO, UpdateProductDTO } from '../types/product.types';
-import { generateId } from '../utils/idGenerator';
+import { generateIdSync } from '../utils/idGenerator';
 
 class ProductRepository {
   private products: Product[] = [];
@@ -22,7 +22,7 @@ class ProductRepository {
 
   create(data: CreateProductDTO): Product {
     const newProduct: Product = {
-      id: generateId('product'),
+      id: generateIdSync('product'),
       ...data,
       gallery: data.gallery || [],
       isActive: data.isActive ?? true,

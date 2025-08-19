@@ -7,7 +7,7 @@ import {
   UserRole,
 } from '../types/user.types';
 import { validateEmail } from '../middleware/validation.middleware';
-import { generateId } from '../utils/idGenerator';
+import { generateIdSync } from '../utils/idGenerator';
 
 const users: User[] = [];
 
@@ -51,7 +51,7 @@ export const createUser = async (req: Request<{}, {}, CreateUserDTO>, res: Respo
     }
 
     const newUser: User = {
-      id: generateId('user'),
+      id: generateIdSync('user'),
       email,
       password,
       firstName,

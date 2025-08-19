@@ -1,5 +1,5 @@
 import { Order, UpdateOrderDTO, OrderStatus, PaymentStatus, OrderItem, PaymentMethod, ShippingAddress } from '../types/order.types';
-import { generateId } from '../utils/idGenerator';
+import { generateIdSync } from '../utils/idGenerator';
 import { settings } from '../controllers/settings.controller';
 
 class OrderRepository {
@@ -44,7 +44,7 @@ class OrderRepository {
     notes?: string;
   }): Order {
     const newOrder: Order = {
-      id: generateId('order'),
+      id: generateIdSync('order'),
       orderNumber: this.generateOrderNumber(),
       status: OrderStatus.PENDING,
       paymentStatus: PaymentStatus.PENDING,
